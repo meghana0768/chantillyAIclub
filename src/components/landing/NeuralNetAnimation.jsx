@@ -7,6 +7,7 @@ const NeuralNetAnimation = ({ onReveal }) => {
   const stateRef = useRef({
     nodes: [],
     edges: [],
+    nodesByLayer: [],
     W: 0,
     H: 0,
     DPR: 1,
@@ -15,7 +16,8 @@ const NeuralNetAnimation = ({ onReveal }) => {
   const CONFIG = {
     layers: [3, 5, 6, 5, 3],
     layerDelay: 0.82,
-    revealAt: 4.4,
+    revealAt: 4.2,
+    startDelay: 0.6, // seconds the network sits idle before the first pulse
   };
 
   useEffect(() => {
@@ -41,25 +43,27 @@ const NeuralNetAnimation = ({ onReveal }) => {
     const build = () => {
       state.nodes = [];
       state.edges = [];
+      state.nodesByLayer = [];
+      // Build nodes once, grouped by layer in the same order as before, so
+      // we never have to re-scan the whole node list to find a layer's nodes.
       CONFIG.layers.forEach((c, li) => {
+        const group = [];
         for (let i = 0; i < c; i++) {
-          state.nodes.push({
-            layer: li,
-            x: 0,
-            y: 0,
-            base: Math.random() * 6.28,
-          });
+          const node = { layer: li, x: 0, y: 0, base: Math.random() * 6.28 };
+          state.nodes.push(node);
+          group.push(node);
         }
+        state.nodesByLayer.push(group);
       });
       for (let li = 0; li < CONFIG.layers.length - 1; li++) {
-        const a = state.nodes.filter((n) => n.layer === li);
-        const b = state.nodes.filter((n) => n.layer === li + 1);
+        const a = state.nodesByLayer[li];
+        const b = state.nodesByLayer[li + 1];
         a.forEach((na) => b.forEach((nb) => state.edges.push({ a: na, b: nb, layer: li })));
       }
     };
 
     const layout = () => {
-      const padX = state.W * 0.1;
+      const padX = state.W * 0.12;
       const padY = state.H * 0.08;
       const usableW = state.W - padX * 2;
       const L = CONFIG.layers.length;
@@ -67,14 +71,11 @@ const NeuralNetAnimation = ({ onReveal }) => {
         const x = L === 1 ? state.W / 2 : padX + (usableW * li) / (L - 1);
         const sp = (state.H - padY * 2) / Math.max(c, 1);
         const startY = padY + sp / 2;
-        let k = 0;
-        state.nodes
-          .filter((n) => n.layer === li)
-          .forEach((n) => {
-            n.x = x;
-            n.y = startY + sp * k;
-            k++;
-          });
+        const group = state.nodesByLayer[li];
+        for (let k = 0; k < group.length; k++) {
+          group[k].x = x;
+          group[k].y = startY + sp * k;
+        }
       });
     };
 
@@ -88,8 +89,12 @@ const NeuralNetAnimation = ({ onReveal }) => {
       clockRef.current.last = now;
       clockRef.current.t += dt;
       const t = clockRef.current.t;
+      // Animation timeline: the network sits idle for startDelay seconds after
+      // the page opens, then the first pulse begins. Everything that drives the
+      // sweep (edge fronts, pulses, node activation, the reveal) runs off `ta`.
+      const ta = t - CONFIG.startDelay;
 
-      if (!revealedRef.current && t > CONFIG.revealAt) {
+      if (!revealedRef.current && ta > CONFIG.revealAt) {
         revealedRef.current = true;
         document.body.classList.add('revealed');
         // Reveal the title + Enter button and let them stay on screen.
@@ -100,37 +105,41 @@ const NeuralNetAnimation = ({ onReveal }) => {
       ctx.clearRect(0, 0, state.W, state.H);
       ctx.lineCap = 'round';
 
-      // EDGES
+      // ---------- EDGES ----------
+      // No shadowBlur (it's the #1 canvas perf killer). The glow is built from
+      // a wide faint underlay stroke + a bright thin core stroke on the same
+      // line — visually similar, but cheap enough to draw every edge live.
       state.edges.forEach((e) => {
         const start = e.layer * CONFIG.layerDelay;
-        const front = (t - start) / CONFIG.layerDelay;
+        const front = (ta - start) / CONFIG.layerDelay; // 0 at source, 1 at target
         ctx.beginPath();
         ctx.moveTo(e.a.x, e.a.y);
         ctx.lineTo(e.b.x, e.b.y);
         if (front <= 0) {
           ctx.strokeStyle = 'rgba(169,116,255,0.10)';
           ctx.lineWidth = 1;
-          ctx.stroke();
+          ctx.stroke(); // dim / inactive
         } else {
-          const lit = Math.min(front, 1);
-          ctx.shadowColor = 'rgba(169,116,255,0.9)';
-          ctx.shadowBlur = 16;
-          ctx.strokeStyle = 'rgba(169,116,255,' + (0.1 + 0.32 * lit) + ')';
-          ctx.lineWidth = 2.3;
+          const lit = Math.min(front, 1); // portion already energized → stays lit
+          ctx.strokeStyle = 'rgba(169,116,255,' + (0.05 + 0.16 * lit) + ')';
+          ctx.lineWidth = 5.5;
           ctx.stroke();
-          ctx.shadowBlur = 0;
+          ctx.strokeStyle = 'rgba(214,196,255,' + (0.16 + 0.5 * lit) + ')';
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
         }
       });
 
-      // TRAVELING PULSE DOTS
+      // ---------- TRAVELING PULSE DOTS ----------
       state.edges.forEach((e) => {
         const start = e.layer * CONFIG.layerDelay;
-        const p = (t - start) / CONFIG.layerDelay;
+        const p = (ta - start) / CONFIG.layerDelay;
         if (p > 0 && p < 1) {
           const dx = e.b.x - e.a.x;
           const dy = e.b.y - e.a.y;
           const x = e.a.x + dx * p;
           const y = e.a.y + dy * p;
+          // comet tail trailing the head
           const tp = Math.max(0, p - 0.24);
           const tx = e.a.x + dx * tp;
           const ty = e.a.y + dy * tp;
@@ -143,6 +152,7 @@ const NeuralNetAnimation = ({ onReveal }) => {
           ctx.moveTo(tx, ty);
           ctx.lineTo(x, y);
           ctx.stroke();
+          // outer glow bloom (radial gradient — already glows, no shadowBlur)
           const g = ctx.createRadialGradient(x, y, 0, x, y, 19);
           g.addColorStop(0, 'rgba(255,255,255,1)');
           g.addColorStop(0.32, 'rgba(201,168,255,0.95)');
@@ -151,27 +161,34 @@ const NeuralNetAnimation = ({ onReveal }) => {
           ctx.beginPath();
           ctx.arc(x, y, 19, 0, 6.2832);
           ctx.fill();
-          ctx.shadowColor = 'rgba(255,255,255,0.95)';
-          ctx.shadowBlur = 22;
+          // bright core
           ctx.fillStyle = '#fff';
           ctx.beginPath();
-          ctx.arc(x, y, 4.4, 0, 6.2832);
+          ctx.arc(x, y, 4.2, 0, 6.2832);
           ctx.fill();
-          ctx.shadowBlur = 0;
         }
       });
 
-      // NODES
+      // ---------- NODES (round dots, glow on activation) ----------
       state.nodes.forEach((n) => {
         const start = n.layer * CONFIG.layerDelay;
-        const act = smooth(0, 0.32, t - start);
-        const pop = t > start ? Math.exp(-(t - start) * 4) * 0.6 : 0;
+        const act = smooth(0, 0.32, ta - start); // 0 → 1 as the pulse reaches it
+        const pop = ta > start ? Math.exp(-(ta - start) * 4) * 0.6 : 0;
         const e = Math.min(act + pop, 1.3);
         const idle = 0.5 + 0.16 * Math.sin(t * 1.6 + n.base);
         const r = 4.5 + act * 3;
 
-        ctx.shadowColor = 'rgba(169,116,255,' + (0.45 + act * 0.5) + ')';
-        ctx.shadowBlur = 12 + act * 24;
+        // soft halo glow (cheap radial fill, no shadowBlur)
+        const hr = r * 3.2;
+        const hg = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, hr);
+        hg.addColorStop(0, 'rgba(169,116,255,' + (0.1 + act * 0.3) + ')');
+        hg.addColorStop(1, 'rgba(169,116,255,0)');
+        ctx.fillStyle = hg;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, hr, 0, 6.2832);
+        ctx.fill();
+
+        // node sphere (offset highlight = 3D)
         const g = ctx.createRadialGradient(
           n.x - r * 0.32,
           n.y - r * 0.32,
@@ -197,7 +214,6 @@ const NeuralNetAnimation = ({ onReveal }) => {
         ctx.arc(n.x, n.y, r, 0, 6.2832);
         ctx.fill();
       });
-      ctx.shadowBlur = 0;
 
       rafId = requestAnimationFrame(frame);
     };
@@ -218,11 +234,20 @@ const NeuralNetAnimation = ({ onReveal }) => {
       cancelAnimationFrame(rafId);
       document.body.classList.remove('revealed');
     };
-  }, [onReveal]);
+    // Set up the canvas + animation loop exactly once. onReveal is only used
+    // by the click handler below (not inside this effect), so it must NOT be a
+    // dependency — otherwise the whole canvas would tear down and rebuild every
+    // time the parent re-renders, stacking work and stuttering.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSkip = () => {
     // Fast-forward the intro so the title + Enter button reveal immediately.
-    clockRef.current.t = Math.max(clockRef.current.t, CONFIG.revealAt + 0.1);
+    // Account for the start delay so the network also finishes lighting up.
+    clockRef.current.t = Math.max(
+      clockRef.current.t,
+      CONFIG.startDelay + CONFIG.revealAt + 0.1
+    );
     revealedRef.current = true;
     document.body.classList.add('revealed');
   };
@@ -314,31 +339,13 @@ const NeuralNetAnimation = ({ onReveal }) => {
           padding: '0 24px',
         }}
       >
-        <div
-          className="kicker"
-          style={{
-            fontFamily: '"Sora", sans-serif',
-            fontWeight: 300,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-            fontSize: '12px',
-            color: '#c9a8ff',
-            marginBottom: '24px',
-            opacity: 0,
-            transform: 'translateY(14px)',
-            transition: 'opacity 0.9s ease-out, transform 0.9s ease-out',
-            transitionDelay: '0.15s',
-          }}
-        >
-          Chantilly High School
-        </div>
-
         <h1
           style={{
             fontFamily: '"Michroma", sans-serif',
-            fontSize: 'clamp(22px, 5.5vw, 58px)',
-            lineHeight: '1.05',
-            letterSpacing: '-0.02em',
+            fontSize: 'clamp(21px, 5vw, 56px)',
+            lineHeight: '1.12',
+            letterSpacing: '0.04em',
+            wordSpacing: '0.35em',
             textTransform: 'uppercase',
             color: 'white',
             textShadow: '0 0 28px rgba(169, 116, 255, 0.55), 0 0 64px rgba(169, 116, 255, 0.25)',
@@ -350,10 +357,10 @@ const NeuralNetAnimation = ({ onReveal }) => {
             style={{
               display: 'inline-block',
               opacity: 0,
-              transform: 'translateY(22px) blur(8px)',
-              transition: 'opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)',
+              transform: 'scale(1.5)',
+              willChange: 'transform, opacity',
+              transition: 'opacity 0.16s ease-out, transform 0.3s cubic-bezier(0.2, 0.9, 0.25, 1)',
               transitionDelay: '0.05s',
-              filter: 'blur(8px)',
             }}
           >
             Chantilly
@@ -365,10 +372,10 @@ const NeuralNetAnimation = ({ onReveal }) => {
               display: 'inline-block',
               color: '#c9a8ff',
               opacity: 0,
-              transform: 'translateY(22px) blur(8px)',
-              transition: 'opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)',
+              transform: 'scale(1.5)',
+              willChange: 'transform, opacity',
+              transition: 'opacity 0.16s ease-out, transform 0.3s cubic-bezier(0.2, 0.9, 0.25, 1)',
               transitionDelay: '0.22s',
-              filter: 'blur(8px)',
             }}
           >
             AI
@@ -379,10 +386,10 @@ const NeuralNetAnimation = ({ onReveal }) => {
             style={{
               display: 'inline-block',
               opacity: 0,
-              transform: 'translateY(22px) blur(8px)',
-              transition: 'opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)',
+              transform: 'scale(1.5)',
+              willChange: 'transform, opacity',
+              transition: 'opacity 0.16s ease-out, transform 0.3s cubic-bezier(0.2, 0.9, 0.25, 1)',
               transitionDelay: '0.39s',
-              filter: 'blur(8px)',
             }}
           >
             Club
@@ -472,8 +479,7 @@ const NeuralNetAnimation = ({ onReveal }) => {
         
         body.revealed .word {
           opacity: 1 !important;
-          transform: translateY(0) !important;
-          filter: blur(0) !important;
+          transform: scale(1) !important;
         }
         
         body.revealed .center-dim {

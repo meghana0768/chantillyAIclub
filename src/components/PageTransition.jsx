@@ -5,8 +5,9 @@ import { motion } from 'framer-motion';
  * Wraps a routed page so it animates in/out as the route changes.
  * Pairs with <AnimatePresence mode="wait"> in App.jsx.
  *
- * The effect: the outgoing page blurs + lifts away while a thin accent
- * panel sweeps across, then the incoming page settles in from below.
+ * The effect: the outgoing page lifts away while a thin accent panel sweeps
+ * across, then the incoming page settles in from below. Uses only opacity +
+ * transform (no blur filter) so the transition stays GPU-cheap and smooth.
  */
 const ease = [0.22, 1, 0.36, 1];
 
@@ -24,9 +25,9 @@ export default function PageTransition({ children }) {
       />
 
       <motion.div
-        initial={{ opacity: 0, y: 28, filter: 'blur(10px)' }}
-        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-        exit={{ opacity: 0, y: -20, filter: 'blur(10px)' }}
+        initial={{ opacity: 0, y: 28 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.5, ease, delay: 0.08 }}
       >
         {children}

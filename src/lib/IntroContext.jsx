@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 const IntroContext = createContext({ introVisible: false, hideIntro: () => {} });
 
@@ -21,20 +21,18 @@ export function IntroProvider({ children }) {
     }
   });
 
-  const hideIntro = () => {
+  const hideIntro = useCallback(() => {
     try {
       sessionStorage.setItem(INTRO_KEY, '1');
     } catch {
       // ignore
     }
     setIntroVisible(false);
-  };
+  }, []);
 
-  return (
-    <IntroContext.Provider value={{ introVisible, hideIntro }}>
-      {children}
-    </IntroContext.Provider>
-  );
+  const value = useMemo(() => ({ introVisible, hideIntro }), [introVisible, hideIntro]);
+
+  return <IntroContext.Provider value={value}>{children}</IntroContext.Provider>;
 }
 
 export const useIntro = () => useContext(IntroContext);

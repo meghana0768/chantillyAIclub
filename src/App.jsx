@@ -6,7 +6,7 @@ import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-route
 import { AnimatePresence } from 'framer-motion';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import { IntroProvider } from '@/lib/IntroContext';
+import { IntroProvider, useIntro } from '@/lib/IntroContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Navbar from '@/components/landing/Navbar';
 import IntroOverlay from '@/components/IntroOverlay';
@@ -56,11 +56,17 @@ const ScrollToTop = () => {
 
 const AnimatedRoutes = () => {
   const location = useLocation();
+  const { introVisible } = useIntro();
   return (
     <>
       <IntroOverlay />
       <Navbar />
       <ScrollToTop />
+      {/* While the intro splash is on screen, don't mount the site behind it.
+          That keeps the first pulse of the animation smooth — otherwise React
+          is mounting the whole page + running entrance animations at the same
+          time, which stutters the canvas. The site mounts when the user enters. */}
+      {!introVisible && (
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<Navigate to="/Home" replace />} />
@@ -72,6 +78,7 @@ const AnimatedRoutes = () => {
           <Route path="*" element={<PageNotFound />} />
         </Routes>
       </AnimatePresence>
+      )}
     </>
   );
 };

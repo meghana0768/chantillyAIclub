@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&family=Fira+Code:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', sans-serif;
+    --font-mono: 'Fira Code', monospace;
+
+    --background: 0 0% 100%;
+    --foreground: 215 50% 8%;
+    --card: 210 30% 99%;
+    --card-foreground: 215 50% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 50% 8%;
+    --primary: 270 85% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 270 30% 96%;
+    --secondary-foreground: 270 60% 20%;
+    --muted: 270 20% 94%;
+    --muted-foreground: 270 12% 46%;
+    --accent: 280 80% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 270 20% 88%;
+    --input: 270 20% 88%;
+    --ring: 270 85% 50%;
+    --radius: 0.625rem;
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+  }
+}

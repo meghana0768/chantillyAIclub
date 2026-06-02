@@ -63,8 +63,11 @@ const NeuralNetAnimation = ({ onReveal }) => {
     };
 
     const layout = () => {
-      const padX = state.W * 0.12;
-      const padY = state.H * 0.08;
+      // On phones the viewport is tall and narrow, so use more of the width
+      // and don't let the network stretch as tall. Desktop is unchanged.
+      const mobile = state.W < 768;
+      const padX = state.W * (mobile ? 0.05 : 0.12);
+      const padY = state.H * (mobile ? 0.16 : 0.06);
       const usableW = state.W - padX * 2;
       const L = CONFIG.layers.length;
       CONFIG.layers.forEach((c, li) => {

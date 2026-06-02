@@ -47,7 +47,7 @@ const typeStyle = {
 
 export default function EventsSection() {
   return (
-    <section id="events" className="py-28 px-6 bg-secondary/40">
+    <section id="events" className="py-16 md:py-28 px-6 bg-secondary/40">
       <div className="max-w-5xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 16 }}

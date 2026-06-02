@@ -36,7 +36,7 @@ const cards = [
 
 export default function ExploreSection() {
   return (
-    <section className="py-24 px-6 bg-white">
+    <section className="py-14 md:py-24 px-6 bg-white">
       <div className="max-w-5xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 16 }}

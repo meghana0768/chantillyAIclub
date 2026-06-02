@@ -84,14 +84,14 @@ export default function HeroSection() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.35 }}
-              className="mt-10 flex gap-8 flex-wrap border-t border-border/50 pt-8">
+              className="mt-10 flex gap-5 sm:gap-8 flex-wrap border-t border-border/50 pt-8">
               
               {[
                 { value: '30+', label: 'Active Members' },
                 { value: '8', label: 'Student Projects' },
                 { value: '3+', label: 'Hackathons Entered' }].
               map((stat, i) =>
-                <div key={stat.label} className={`${i > 0 ? 'pl-8 border-l border-border/50' : ''}`}>
+                <div key={stat.label} className={`${i > 0 ? 'pl-5 sm:pl-8 border-l border-border/50' : ''}`}>
                   <div className="text-2xl font-extrabold text-primary">{stat.value}</div>
                   <div className="text-xs text-muted-foreground mt-0.5 font-medium">{stat.label}</div>
                 </div>
